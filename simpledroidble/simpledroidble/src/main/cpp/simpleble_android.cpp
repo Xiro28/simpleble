@@ -813,3 +813,38 @@ Java_org_simpleble_android_Peripheral_nativePeripheralDescriptorWrite(JNIEnv *en
                                                                       jbyteArray data) {
     // TODO: implement nativePeripheralDescriptorWrite()
 }
+
+extern "C"
+JNIEXPORT jbyteArray JNICALL
+Java_org_simpleble_android_SimpleBleServer_onNativeReadRequest(JNIEnv* env, jobject thiz, jlong nativeHandle, jstring charUuid) {
+    
+    auto* server = reinterpret_cast<simpleble::ServerBase*>(nativeHandle);
+    
+    const char* uuid_c = env->GetStringUTFChars(charUuid, nullptr);
+    std::string uuid(uuid_c);
+    env->ReleaseStringUTFChars(charUuid, uuid_c);
+
+    std::vector<uint8_t> data = server->handle_read(uuid);
+
+    jbyteArray result = env->NewByteArray(data.size());
+    env->SetByteArrayRegion(result, 0, data.size(), reinterpret_cast<const jbyte*>(data.data()));
+    return result;
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_org_simpleble_android_SimpleBleServer_onNativeWriteRequest(JNIEnv* env, jobject thiz, jlong nativeHandle, jstring charUuid, jbyteArray data) {
+    
+    auto* server = reinterpret_cast<simpleble::ServerBase*>(nativeHandle);
+    
+    const char* uuid_c = env->GetStringUTFChars(charUuid, nullptr);
+    std::string uuid(uuid_c);
+    env->ReleaseStringUTFChars(charUuid, uuid_c);
+
+    jsize length = env->GetArrayLength(data);
+    jbyte* buffer = env->GetByteArrayElements(data, nullptr);
+    std::vector<uint8_t> cpp_data(buffer, buffer + length);
+    env->ReleaseByteArrayElements(data, buffer, JNI_ABORT);
+
+    server->handle_write(uuid, cpp_data);
+}

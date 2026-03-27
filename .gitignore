@@ -23,3 +23,21 @@ uv.lock
 
 node_modules/
 
+
+simpleble/cmake_install.cmake
+
+simpleble/CMakeCache.txt
+
+simpleble/CMakeFiles/*
+
+simpleble/VERSION
+
+simpleble/simpleble.pc
+
+simpleble/Makefile
+
+*.a
+
+simpleble/export/simpleble/export.h
+
+simpleble/compile_commands.json

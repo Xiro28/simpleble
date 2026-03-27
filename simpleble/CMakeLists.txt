@@ -354,6 +354,7 @@ elseif(SIMPLEBLE_BACKEND_MACOS OR SIMPLEBLE_BACKEND_IOS)
         ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/macos/AdapterMac.mm
         ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/macos/AdapterBaseMacOS.mm
         ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/macos/PeripheralMac.mm
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/macos/ServerMac.mm
         ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/macos/PeripheralBaseMacOS.mm
         ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/macos/BackendCoreBluetooth.mm)
 
@@ -372,6 +373,7 @@ elseif(SIMPLEBLE_BACKEND_ANDROID)
         ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/android/AdapterAndroid.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/android/PeripheralAndroid.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/android/BackendAndroid.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/android/ServerBase.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/android/bridge/BluetoothGattCallback.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/android/bridge/ScanCallback.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/android/types/android/bluetooth/BluetoothAdapter.cpp
