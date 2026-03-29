@@ -25,6 +25,10 @@ Server::Server() {
 
 Server::~Server() = default;
 
+void Server::set_on_ready(std::function<void()> callback) {
+    if (internal_) internal_->set_on_ready(callback);
+}
+
 void Server::start_advertising(const std::string& name, const std::string& service_uuid) {
     if (internal_) internal_->start_advertising(name, service_uuid);
 }

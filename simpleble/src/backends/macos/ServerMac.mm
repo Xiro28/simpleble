@@ -64,7 +64,9 @@ using namespace simpleble;
 ServerMac::ServerMac() {
     SimpleBLEServerDelegate* delegate = [[SimpleBLEServerDelegate alloc] init];
     delegate.cpp_server = this;
-    delegate.manager = [[CBPeripheralManager alloc] initWithDelegate:delegate queue:nil];
+
+    dispatch_queue_t ble_queue = dispatch_queue_create("com.daas.ble", DISPATCH_QUEUE_SERIAL);
+    delegate.manager = [[CBPeripheralManager alloc] initWithDelegate:delegate queue:ble_queue];
     
     opaque_internal_ = (__bridge_retained void*)delegate;
 }
@@ -129,6 +131,9 @@ void ServerMac::set_on_read(const std::string& char_uuid, std::function<std::vec
 
 void ServerMac::set_on_write(const std::string& char_uuid, std::function<void(const std::vector<uint8_t>&)> callback) {
     write_callbacks_[char_uuid] = callback;
+}
+void ServerMac::set_on_ready(std::function<void()> callback) {
+    on_ready_callback_ = callback;
 }
 
 std::vector<uint8_t> ServerMac::handle_read(const std::string& char_uuid) {
