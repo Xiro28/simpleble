@@ -9,9 +9,19 @@ using namespace simpleble;
 @interface SimpleBLEServerDelegate : NSObject <CBPeripheralManagerDelegate>
 @property (nonatomic, assign) ServerMac* cpp_server; 
 @property (nonatomic, strong) CBPeripheralManager* manager; 
+@property (nonatomic, strong) NSMutableDictionary<NSString*, CBCentral*>* known_centrals;
+@property (nonatomic, strong) NSMutableDictionary<NSString*, CBMutableCharacteristic*>* known_characteristics;
 @end
 
 @implementation SimpleBLEServerDelegate
+- (instancetype)init {
+    self = [super init];
+    if (self) {
+        _known_centrals = [[NSMutableDictionary alloc] init];
+        _known_characteristics = [[NSMutableDictionary alloc] init];
+    }
+    return self;
+}
 
 - (void)peripheralManagerDidUpdateState:(CBPeripheralManager *)peripheral {
     if (peripheral.state == CBManagerStatePoweredOn) {
@@ -35,8 +45,10 @@ using namespace simpleble;
 - (void)peripheralManager:(CBPeripheralManager *)peripheral didReceiveReadRequest:(CBATTRequest *)request {
     std::string uuid_str = [[request.characteristic.UUID UUIDString] UTF8String];
     
+    std::string central_id = [[request.central.identifier UUIDString] UTF8String];
+    
     if (self.cpp_server) {
-        std::vector<uint8_t> cpp_data = self.cpp_server->handle_read(uuid_str);
+        std::vector<uint8_t> cpp_data = self.cpp_server->handle_read(uuid_str, central_id);
         request.value = [NSData dataWithBytes:cpp_data.data() length:cpp_data.size()];
         [peripheral respondToRequest:request withResult:CBATTErrorSuccess];
     } else {
@@ -48,15 +60,23 @@ using namespace simpleble;
     for (CBATTRequest *request in requests) {
         std::string uuid_str = [[request.characteristic.UUID UUIDString] UTF8String];
         
+        std::string central_id = [[request.central.identifier UUIDString] UTF8String];
+        
         const uint8_t* bytes = (const uint8_t*)[request.value bytes];
         size_t length = [request.value length];
         std::vector<uint8_t> cpp_data(bytes, bytes + length);
         
         if (self.cpp_server) {
-            self.cpp_server->handle_write(uuid_str, cpp_data);
+            self.cpp_server->handle_write(uuid_str, cpp_data, central_id);
         }
         [peripheral respondToRequest:request withResult:CBATTErrorSuccess];
     }
+}
+
+- (void)peripheralManager:(CBPeripheralManager *)peripheral central:(CBCentral *)central didSubscribeToCharacteristic:(CBCharacteristic *)characteristic {
+    NSString* central_id = [central.identifier UUIDString];
+    self.known_centrals[central_id] = central; // Save the phone in memory!
+    std::cout << "[macOS] Device " << [central_id UTF8String] << " subscribed!" << std::endl;
 }
 @end
 
@@ -100,7 +120,7 @@ void ServerMac::start_advertising(const std::string& name, const std::string& se
     [delegate.manager startAdvertising:adv_data];
 }
 
-void ServerMac::add_characteristic(const std::string& service_uuid, const std::string& char_uuid, bool can_read, bool can_write) {
+void ServerMac::add_characteristic(const std::string& service_uuid, const std::string& char_uuid, bool can_read, bool can_write, bool can_notify) {
     SimpleBLEServerDelegate* delegate = (__bridge SimpleBLEServerDelegate*)opaque_internal_;
     
     CBUUID* s_uuid = [CBUUID UUIDWithString:[NSString stringWithUTF8String:service_uuid.c_str()]];
@@ -118,35 +138,72 @@ void ServerMac::add_characteristic(const std::string& service_uuid, const std::s
         perms |= CBAttributePermissionsWriteable;
     }
 
+    if (can_notify) {
+        props |= CBCharacteristicPropertyNotify;
+    }
+
     CBMutableCharacteristic* apple_char = [[CBMutableCharacteristic alloc] initWithType:c_uuid properties:props value:nil permissions:perms];
+    NSString* ns_char_uuid = [NSString stringWithUTF8String:char_uuid.c_str()];
+    delegate.known_characteristics[ns_char_uuid] = apple_char;
+
     CBMutableService* apple_service = [[CBMutableService alloc] initWithType:s_uuid primary:YES];
     apple_service.characteristics = @[apple_char];
 
     [delegate.manager addService:apple_service];
 }
 
-void ServerMac::set_on_read(const std::string& char_uuid, std::function<std::vector<uint8_t>()> callback) {
+void ServerMac::notify(const std::string& char_uuid, const std::vector<uint8_t>& data, const std::string& target_id) {
+    SimpleBLEServerDelegate* delegate = (__bridge SimpleBLEServerDelegate*)opaque_internal_;
+    
+
+    NSString* ns_char_uuid = [NSString stringWithUTF8String:char_uuid.c_str()];
+    CBMutableCharacteristic* target_char = delegate.known_characteristics[ns_char_uuid];
+    
+
+    if (target_char) {
+        NSData* ns_data = [NSData dataWithBytes:data.data() length:data.size()];
+        NSArray<CBCentral*>* target_array = nil; 
+        
+        if (!target_id.empty()) {
+            NSString* ns_id = [NSString stringWithUTF8String:target_id.c_str()];
+            CBCentral* specific_phone = delegate.known_centrals[ns_id];
+            
+            if (specific_phone) {
+                target_array = @[specific_phone]; 
+            } else {
+                std::cerr << "[macOS] Error: Tried to message an unknown device!\nBroadcast fallback" << std::endl;
+            }
+        }
+        
+        [delegate.manager updateValue:ns_data forCharacteristic:target_char onSubscribedCentrals:target_array];
+    } else {
+        std::cerr << "[macOS] Error: Cannot notify. Characteristic " << char_uuid << " not found!" << std::endl;
+    }
+}
+
+void ServerMac::set_on_read(const std::string& char_uuid, std::function<std::vector<uint8_t>(const std::string&)> callback) {
     read_callbacks_[char_uuid] = callback;
 }
 
-void ServerMac::set_on_write(const std::string& char_uuid, std::function<void(const std::vector<uint8_t>&)> callback) {
+void ServerMac::set_on_write(const std::string& char_uuid, std::function<void(const std::vector<uint8_t>&, const std::string&)> callback) {
     write_callbacks_[char_uuid] = callback;
 }
+
 void ServerMac::set_on_ready(std::function<void()> callback) {
     on_ready_callback_ = callback;
 }
 
-std::vector<uint8_t> ServerMac::handle_read(const std::string& char_uuid) {
+std::vector<uint8_t> ServerMac::handle_read(const std::string& char_uuid, const std::string& central_id) {
     auto it = read_callbacks_.find(char_uuid);
     if (it != read_callbacks_.end() && it->second) {
-        return it->second();
+        return it->second(central_id);
     }
     return std::vector<uint8_t>();
 }
 
-void ServerMac::handle_write(const std::string& char_uuid, const std::vector<uint8_t>& data) {
+void ServerMac::handle_write(const std::string& char_uuid, const std::vector<uint8_t>& data, const std::string& central_id) {
     auto it = write_callbacks_.find(char_uuid);
     if (it != write_callbacks_.end() && it->second) {
-        it->second(data);
+        it->second(data, central_id);
     }
 }

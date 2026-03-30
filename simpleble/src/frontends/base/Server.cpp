@@ -33,14 +33,17 @@ void Server::start_advertising(const std::string& name, const std::string& servi
     if (internal_) internal_->start_advertising(name, service_uuid);
 }
 
-void Server::add_characteristic(const std::string& service_uuid, const std::string& char_uuid, bool can_read, bool can_write) {
-    if (internal_) internal_->add_characteristic(service_uuid, char_uuid, can_read, can_write);
+void Server::add_characteristic(const std::string& service_uuid, const std::string& char_uuid, bool can_read, bool can_write, bool can_notify) {
+    if (internal_) internal_->add_characteristic(service_uuid, char_uuid, can_read, can_write, can_notify);
 }
 
-void Server::set_on_read(const std::string& char_uuid, std::function<std::vector<uint8_t>()> callback) {
-    if (internal_) internal_->set_on_read(char_uuid, callback);
+void Server::set_on_read(const std::string& characteristic, std::function<std::vector<uint8_t>(const std::string&)> callback) {
+    internal_->set_on_read(characteristic, callback);
+}
+void Server::set_on_write(const std::string& characteristic, std::function<void(const std::vector<uint8_t>&, const std::string&)> callback) {
+    internal_->set_on_write(characteristic, callback);
 }
 
-void Server::set_on_write(const std::string& char_uuid, std::function<void(const std::vector<uint8_t>&)> callback) {
-    if (internal_) internal_->set_on_write(char_uuid, callback);
+void Server::notify(const std::string& char_uuid, const std::vector<uint8_t>& data, const std::string& target_id) {
+    if (internal_) internal_->notify(char_uuid, data, target_id);
 }
