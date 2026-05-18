@@ -18,8 +18,18 @@ public:
     virtual void set_on_ready(std::function<void()> callback) = 0;
     virtual void set_on_read(const std::string& characteristic, std::function<std::vector<uint8_t>(const std::string&)> callback) = 0;
     virtual void set_on_write(const std::string& characteristic, std::function<void(const std::vector<uint8_t>&, const std::string&)> callback) = 0;
-    
+    virtual void set_on_disconnect(std::function<void(const std::string&)> callback) = 0;
+
+
+    virtual void disconnect(const std::string& char_uuid) = 0;
     virtual void notify(const std::string& char_uuid, const std::vector<uint8_t>& data, const std::string& target_id = "") = 0;
+    
+    std::function<void(const std::string&)> disconnect_callback_;
+
+    std::map<std::string, std::function<std::vector<uint8_t>()>> read_callbacks_;
+    std::map<std::string, std::function<void(const std::vector<uint8_t>&)>> write_callbacks_;
+private:
+
 };
 
 } 

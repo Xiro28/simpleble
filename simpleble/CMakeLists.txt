@@ -10,6 +10,56 @@ project(
     LANGUAGES CXX C
 )
 
+if(ESP_PLATFORM)
+    message(STATUS "ESP-IDF Environment Detected: Building SimpleBLE as an ESP Component")
+
+    set(SIMPLEBLE_ESP32_SRC
+        # Core Frontend
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/frontends/base/Advanced.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/frontends/base/Adapter.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/frontends/base/Peripheral.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/frontends/base/Service.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/frontends/base/Characteristic.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/frontends/base/Descriptor.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/frontends/base/Backend.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/frontends/base/Server.cpp
+        
+        # Common Backend Tools
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/common/AdapterBase.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/common/ServiceBase.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/common/CharacteristicBase.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/common/DescriptorBase.cpp
+        
+        # Utilities
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Config.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Exceptions.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Utils.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Logging.cpp
+        
+        # ESP32 Specific Backend (Ensure these files are in this folder!)
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/esp32/AdapterESP32.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/esp32/PeripheralESP32.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/esp32/BackendESP32.cpp
+    )
+
+    # Register as an ESP-IDF Component and link the NimBLE framework
+    idf_component_register(
+        SRCS ${SIMPLEBLE_ESP32_SRC}
+        INCLUDE_DIRS "include"
+        REQUIRES esp_nimble_cpp
+        PRIV_REQUIRES pthread
+    )
+
+    # Add required compilation flags
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE 
+        SIMPLEBLE_BACKEND_ESP32=1
+        SIMPLEBLE_LOG_LEVEL=SIMPLEBLE_LOG_LEVEL_INFO
+    )
+
+    # STOP processing the rest of the CMakeLists.txt! ESP-IDF takes over from here.
+    return() 
+endif()
+
 include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/epilogue.cmake)
 
 include(GenerateExportHeader)

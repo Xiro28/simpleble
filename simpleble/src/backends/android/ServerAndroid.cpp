@@ -42,7 +42,7 @@ jobject get_android_context() {
 
 namespace simpleble {
 
-ServerBase::ServerBase() {
+ServerAndroid::ServerAndroid() {
     JNIEnv* env = get_env();
     
     jclass server_class = env->FindClass("org/simpleble/android/SimpleBleServer");
@@ -64,14 +64,29 @@ ServerBase::ServerBase() {
     env->DeleteLocalRef(local_java_server);
 }
 
-ServerBase::~ServerBase() {
+ServerAndroid::~ServerAndroid() {
     if (java_server_) {
         JNIEnv* env = get_env();
         env->DeleteGlobalRef(java_server_);
     }
 }
 
-void ServerBase::start_advertising(const std::string& name, const std::string& service_uuid) {
+void ServerAndroid::disconnect(const std::string& identifier) {
+     if (!java_server_) return;
+    JNIEnv* env = get_env();
+
+    jclass server_class = env->GetObjectClass(java_server_);
+    jmethodID start_adv_id = env->GetMethodID(server_class, "disconnect_remote", "(Ljava/lang/String)V");
+
+    jstring jidentifier = env->NewStringUTF(identifier.c_str());
+
+    env->CallVoidMethod(java_server_, start_adv_id, jidentifier);
+
+    env->DeleteLocalRef(jidentifier);
+    env->DeleteLocalRef(server_class);   
+}
+
+void ServerAndroid::start_advertising(const std::string& name, const std::string& service_uuid) {
     if (!java_server_) return;
     JNIEnv* env = get_env();
 
@@ -88,7 +103,7 @@ void ServerBase::start_advertising(const std::string& name, const std::string& s
     env->DeleteLocalRef(server_class);
 }
 
-void ServerBase::add_characteristic(const std::string& service_uuid, const std::string& char_uuid, bool can_read, bool can_write) {
+void ServerAndroid::add_characteristic(const std::string& service_uuid, const std::string& char_uuid, bool can_read, bool can_write) {
     if (!java_server_) return;
     JNIEnv* env = get_env();
 
@@ -105,15 +120,19 @@ void ServerBase::add_characteristic(const std::string& service_uuid, const std::
     env->DeleteLocalRef(server_class);
 }
 
-void ServerBase::set_on_read(const std::string& char_uuid, std::function<std::vector<uint8_t>()> callback) {
+void ServerAndroid::set_on_read(const std::string& char_uuid, std::function<std::vector<uint8_t>()> callback) {
     read_callbacks_[char_uuid] = callback;
 }
 
-void ServerBase::set_on_write(const std::string& char_uuid, std::function<void(const std::vector<uint8_t>&)> callback) {
+void ServerAndroid::set_on_write(const std::string& char_uuid, std::function<void(const std::vector<uint8_t>&)> callback) {
     write_callbacks_[char_uuid] = callback;
 }
 
-std::vector<uint8_t> ServerBase::handle_read(const std::string& char_uuid) {
+void ServerAndroid::set_on_disconnect(std::function<void(const std::string&)> callback) {
+    disconnect_callback_ = callback;
+}
+
+std::vector<uint8_t> ServerAndroid::handle_read(const std::string& char_uuid) {
     auto it = read_callbacks_.find(char_uuid);
     if (it != read_callbacks_.end() && it->second) {
         return it->second();
@@ -122,7 +141,7 @@ std::vector<uint8_t> ServerBase::handle_read(const std::string& char_uuid) {
     return std::vector<uint8_t>();
 }
 
-void ServerBase::handle_write(const std::string& char_uuid, const std::vector<uint8_t>& data) {
+void ServerAndroid::handle_write(const std::string& char_uuid, const std::vector<uint8_t>& data) {
     auto it = write_callbacks_.find(char_uuid);
     if (it != write_callbacks_.end() && it->second) {
         it->second(data);
